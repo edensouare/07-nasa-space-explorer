@@ -219,6 +219,13 @@ function LazyImage({ src, alt, fallbackSrc = 'img/nasa-worm-logo.png', className
 
 function App() {
   const defaultRange = useMemo(() => getDefaultRange(), []);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    'Notification' in window ? Notification.permission : 'unsupported'
+  );
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const deferredInstallPrompt = useRef(null);
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
   const [rangeWarning, setRangeWarning] = useState('');
@@ -226,6 +233,98 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const { images, isLoading, error, fetchImages } = useNasaImages(startDate, endDate);
   const fact = useMemo(() => spaceFacts[Math.floor(Math.random() * spaceFacts.length)], []);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      deferredInstallPrompt.current = event;
+      setInstallPrompt(event);
+    }
+
+    function handleAppInstalled() {
+      deferredInstallPrompt.current = null;
+      setInstallPrompt(null);
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
+    function updateOnlineStatus() {
+      setIsOnline(navigator.onLine);
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  async function handleInstallClick() {
+    const promptEvent = deferredInstallPrompt.current;
+    if (!promptEvent) {
+      return;
+    }
+
+    try {
+      await promptEvent.prompt();
+      await promptEvent.userChoice;
+      deferredInstallPrompt.current = null;
+      setInstallPrompt(null);
+    } catch (error) {
+      console.error('Unable to show the app install prompt:', error);
+    }
+  }
+
+  function dismissInstallBanner() {
+    deferredInstallPrompt.current = null;
+    setInstallPrompt(null);
+  }
+
+  async function handleNotificationClick() {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      setNotificationMessage('Notifications are not supported by this browser.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+
+      if (permission === 'granted') {
+        const notificationOptions = {
+          body: 'Notifications are enabled for NASA Space Explorer.',
+          icon: `${import.meta.env.BASE_URL}img/icon-192.png`,
+        };
+        const registration = await navigator.serviceWorker?.getRegistration();
+
+        if (registration) {
+          await registration.showNotification('NASA Space Explorer', notificationOptions);
+        } else {
+          new Notification('NASA Space Explorer', notificationOptions);
+        }
+
+        setNotificationMessage('A test notification was sent.');
+      } else if (permission === 'denied') {
+        setNotificationMessage('Notifications are blocked. Change this site’s permission in your browser settings to enable them.');
+      } else {
+        setNotificationMessage('Notification permission was not granted.');
+      }
+    } catch (error) {
+      console.error('Unable to request notification permission:', error);
+      setNotificationMessage('Could not enable notifications. Please try again.');
+    }
+  }
 
   function handleStartDateChange(event) {
     const nextStart = event.target.value;
@@ -284,48 +383,79 @@ function App() {
   }, [selectedImage]);
 
   return (
-    <div className="container">
-      <header className="site-header">
-        <img src="img/nasa-worm-logo.png" alt="NASA Logo" className="logo" />
-        <h1>Space Explorer</h1>
-      </header>
+    <>
+      {installPrompt && (
+        <aside className="install-banner" aria-label="Install NASA Space Explorer">
+          <p>Install NASA Space Explorer for quick access.</p>
+          <div className="install-banner-actions">
+            <button type="button" onClick={handleInstallClick}>
+              Install
+            </button>
+            <button type="button" className="install-dismiss" onClick={dismissInstallBanner}>
+              Not now
+            </button>
+          </div>
+        </aside>
+      )}
 
-      <div className="filters">
-        <input
-          type="date"
-          id="startDate"
-          min={earliestDate}
-          max={formatDate(new Date())}
-          value={startDate}
-          onChange={handleStartDateChange}
-        />
-        <input
-          type="date"
-          id="endDate"
-          min={earliestDate}
-          max={formatDate(new Date())}
-          value={endDate}
-          onChange={handleEndDateChange}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            setHasSearched(true);
-            fetchImages(startDate, endDate);
-          }}
-        >
-          Get Space Images
-        </button>
-      </div>
+      {!isOnline && (
+        <p className="offline-indicator" role="status" aria-live="polite">
+          You’re offline. Previously loaded photos and app resources may still be available.
+        </p>
+      )}
 
-      {rangeWarning && <p className="status-message">{rangeWarning}</p>}
+      <div className="container">
+        <header className="site-header">
+          <img src="img/nasa-worm-logo.png" alt="NASA Logo" className="logo" />
+          <h1>Space Explorer</h1>
+        </header>
 
-      <section className="did-you-know" aria-live="polite">
-        <h2>Did You Know?</h2>
-        <p>{fact}</p>
-      </section>
+        <div className="filters">
+          <input
+            type="date"
+            id="startDate"
+            min={earliestDate}
+            max={formatDate(new Date())}
+            value={startDate}
+            onChange={handleStartDateChange}
+          />
+          <input
+            type="date"
+            id="endDate"
+            min={earliestDate}
+            max={formatDate(new Date())}
+            value={endDate}
+            onChange={handleEndDateChange}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setHasSearched(true);
+              fetchImages(startDate, endDate);
+            }}
+          >
+            Get Space Images
+          </button>
+        </div>
 
-      <div className="gallery">
+        {rangeWarning && <p className="status-message">{rangeWarning}</p>}
+
+        <section className="did-you-know" aria-live="polite">
+          <h2>Did You Know?</h2>
+          <p>{fact}</p>
+          <div className="notification-controls">
+            {notificationPermission === 'unsupported' ? (
+              <p>Notifications are not supported by this browser.</p>
+            ) : (
+              <button type="button" onClick={handleNotificationClick}>
+                {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
+              </button>
+            )}
+            {notificationMessage && <p role="status">{notificationMessage}</p>}
+          </div>
+        </section>
+
+        <div className="gallery">
         {isLoading && <p className="status-message">🔄 Loading space photos…</p>}
         {!hasSearched && !isLoading && (
           <div className="placeholder">
@@ -369,29 +499,30 @@ function App() {
             </article>
           );
         })}
-      </div>
+        </div>
 
-      {selectedImage && (
-        <div className="modal" aria-hidden="false" onClick={closeModal}>
-          <div className="modal-backdrop" data-close="true" />
-          <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close image" onClick={closeModal}>×</button>
-            {selectedImage.media_type === 'video' ? (
-              <a className="video-link" href={selectedImage.url} target="_blank" rel="noreferrer noopener">
-                Watch the NASA video
-              </a>
-            ) : (
-              <img id="modalImage" src={selectedImage.displayImageUrl || selectedImage.hdurl || selectedImage.url} alt={selectedImage.title} className="modal-image" />
-            )}
-            <div className="modal-copy">
-              <h2 id="modalTitle">{selectedImage.title}</h2>
-              <p className="modal-date">{selectedImage.date}</p>
-              <div dangerouslySetInnerHTML={{ __html: selectedImage.explanation || '' }} />
+        {selectedImage && (
+          <div className="modal" aria-hidden="false" onClick={closeModal}>
+            <div className="modal-backdrop" data-close="true" />
+            <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onClick={(event) => event.stopPropagation()}>
+              <button type="button" className="modal-close" aria-label="Close image" onClick={closeModal}>×</button>
+              {selectedImage.media_type === 'video' ? (
+                <a className="video-link" href={selectedImage.url} target="_blank" rel="noreferrer noopener">
+                  Watch the NASA video
+                </a>
+              ) : (
+                <img id="modalImage" src={selectedImage.displayImageUrl || selectedImage.hdurl || selectedImage.url} alt={selectedImage.title} className="modal-image" />
+              )}
+              <div className="modal-copy">
+                <h2 id="modalTitle">{selectedImage.title}</h2>
+                <p className="modal-date">{selectedImage.date}</p>
+                <div dangerouslySetInnerHTML={{ __html: selectedImage.explanation || '' }} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 

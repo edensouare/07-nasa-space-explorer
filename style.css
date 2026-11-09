@@ -41,6 +41,46 @@ body {
   box-shadow: 0 8px 24px rgba(6, 31, 74, 0.25);
 }
 
+.offline-indicator {
+  margin: -20px -20px 20px;
+  padding: 14px 20px;
+  background: var(--nasa-red);
+  color: var(--nasa-white);
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.install-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0 auto 16px;
+  padding: 14px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: var(--nasa-blue);
+  color: var(--nasa-white);
+}
+
+.install-banner-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.install-banner button {
+  width: auto;
+  padding: 8px 14px;
+}
+
+.install-banner .install-dismiss {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: none;
+}
+
 h1 {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   font-weight: 800;
@@ -93,6 +133,23 @@ h1 {
   font-size: 1.05rem;
   line-height: 1.6;
   color: var(--nasa-white);
+}
+
+.notification-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.notification-controls button {
+  width: auto;
+  padding: 8px 14px;
+}
+
+.notification-controls p {
+  font-size: 0.9rem;
 }
 
 /* Inputs and buttons */

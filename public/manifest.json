@@ -1,0 +1,22 @@
+{
+  "name": "NASA Space Explorer",
+  "short_name": "Space Explorer",
+  "description": "Explore NASA's Astronomy Picture of the Day.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#061f4a",
+  "theme_color": "#061f4a",
+  "icons": [
+    {
+      "src": "./img/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "./img/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
