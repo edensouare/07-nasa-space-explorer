@@ -411,24 +411,31 @@ function App() {
         </header>
 
         <div className="filters">
-          <input
-            type="date"
-            id="startDate"
-            min={earliestDate}
-            max={formatDate(new Date())}
-            value={startDate}
-            onChange={handleStartDateChange}
-          />
-          <input
-            type="date"
-            id="endDate"
-            min={earliestDate}
-            max={formatDate(new Date())}
-            value={endDate}
-            onChange={handleEndDateChange}
-          />
+          <div className="date-field">
+            <label htmlFor="startDate">Start date</label>
+            <input
+              type="date"
+              id="startDate"
+              min={earliestDate}
+              max={formatDate(new Date())}
+              value={startDate}
+              onChange={handleStartDateChange}
+            />
+          </div>
+          <div className="date-field">
+            <label htmlFor="endDate">End date</label>
+            <input
+              type="date"
+              id="endDate"
+              min={earliestDate}
+              max={formatDate(new Date())}
+              value={endDate}
+              onChange={handleEndDateChange}
+            />
+          </div>
           <button
             type="button"
+            className="search-button"
             onClick={() => {
               setHasSearched(true);
               fetchImages(startDate, endDate);

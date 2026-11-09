@@ -20,7 +20,8 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   background: linear-gradient(180deg, var(--nasa-midnight) 0%, #0d1f38 100%);
   color: var(--nasa-ink);
-  padding: 20px;
+  min-width: 320px;
+  padding: clamp(12px, 3vw, 24px);
 }
 
 /* Centered container */
@@ -34,11 +35,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 22px 24px;
+  gap: 12px;
+  padding: clamp(16px, 3vw, 22px) clamp(12px, 4vw, 24px);
   margin-bottom: 24px;
   background: linear-gradient(90deg, var(--nasa-blue) 0%, var(--nasa-navy) 100%);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(6, 31, 74, 0.25);
+  text-align: center;
 }
 
 .offline-indicator {
@@ -58,7 +61,7 @@ body {
   flex-wrap: wrap;
   gap: 12px 20px;
   margin: 0 auto 16px;
-  padding: 14px 20px;
+  padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
   background: var(--nasa-blue);
@@ -87,26 +90,38 @@ h1 {
   letter-spacing: 0.04em;
   color: var(--nasa-white);
   text-transform: uppercase;
+  font-size: clamp(1.35rem, 5vw, 2rem);
 }
 
 /* Logo */
 .logo {
-  width: 140px;
-  margin-right: 18px;
+  width: clamp(72px, 20vw, 140px);
+  flex: 0 0 auto;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
 }
 
 /* Date-picker & button row */
 .filters {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  justify-content: center;
   margin-bottom: 24px;
   padding: 18px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
+}
+
+.date-field {
+  min-width: 0;
+}
+
+.date-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--nasa-white);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .did-you-know {
@@ -164,10 +179,12 @@ button {
   font-size: 16px;
   line-height: 1.4;
   width: 100%;
+  min-height: 44px;
 }
 
 input[type="date"] {
   background: var(--nasa-white);
+  min-width: 0;
 }
 
 /* Button specific */
@@ -185,36 +202,41 @@ button:hover {
   box-shadow: 0 8px 22px rgba(221, 54, 28, 0.32);
 }
 
-/* Stack horizontally on wider screens */
-@media (min-width: 600px) {
+button:focus-visible,
+input:focus-visible,
+.gallery-item:focus-visible,
+a:focus-visible {
+  outline: 3px solid #f7d57d;
+  outline-offset: 3px;
+}
+
+@media (min-width: 640px) {
   .filters {
-    flex-direction: row;
-    padding: 0;
-    background: transparent;
-    border: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
   }
 
-  input[type="date"],
-  button {
+  .search-button {
     width: auto;
+  }
+
+  .install-banner {
+    padding: 14px 20px;
   }
 }
 
 /* Gallery flex container */
 .gallery {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 20px;
-  padding: 20px;
-  justify-content: center;
+  padding: 0;
   color: var(--nasa-white);
 }
 
 /* Gallery items */
 .gallery-item {
-  flex: 1 1 100%;
-  min-width: 280px;
-  max-width: 500px;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.96);
   padding: 12px;
   border-radius: 12px;
@@ -242,7 +264,8 @@ button:hover {
 
 .gallery-item img {
   width: 100%;
-  height: 200px;
+  aspect-ratio: 16 / 9;
+  height: auto;
   object-fit: cover;
   border-radius: 8px;
   transition: transform 0.35s ease, box-shadow 0.35s ease;
@@ -259,6 +282,7 @@ button:hover {
   margin-top: 12px;
   color: var(--nasa-navy);
   font-size: 20px;
+  overflow-wrap: anywhere;
 }
 
 .gallery-item p {
@@ -290,9 +314,9 @@ button:hover {
 
 /* Placeholder content */
 .placeholder {
-  flex: 1 1 100%;
+  grid-column: 1 / -1;
   text-align: center;
-  padding: 40px;
+  padding: clamp(24px, 7vw, 40px);
   color: var(--nasa-white);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -303,6 +327,11 @@ button:hover {
 .gallery > .placeholder,
 .gallery > .placeholder p {
   color: var(--nasa-white);
+}
+
+.gallery > p {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
 }
 
 .placeholder-icon {
@@ -333,13 +362,14 @@ button:hover {
 .modal-content {
   position: relative;
   z-index: 1;
-  width: min(90vw, 900px);
+  width: min(900px, calc(100vw - 24px));
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
   background: var(--nasa-white);
   border-radius: 12px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-  padding: 22px;
+  padding: clamp(16px, 4vw, 22px);
   border-top: 6px solid var(--nasa-red);
 }
 
@@ -360,7 +390,8 @@ button:hover {
 
 .modal-content img {
   width: 100%;
-  max-height: 520px;
+  max-height: min(520px, 55vh);
+  max-height: min(520px, 55dvh);
   object-fit: contain;
   border-radius: 8px;
   margin-bottom: 16px;
@@ -381,4 +412,54 @@ button:hover {
 .modal-copy p {
   line-height: 1.6;
   color: var(--nasa-ink);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 420px) {
+  .site-header {
+    flex-direction: column;
+  }
+
+  .logo {
+    width: 88px;
+  }
+
+  .gallery {
+    gap: 14px;
+  }
+
+  .modal-content {
+    padding-top: 60px;
+  }
+}
+
+@media (hover: none) {
+  .gallery-item:hover,
+  .gallery-item:hover img {
+    transform: none;
+  }
+
+  .gallery-item:hover {
+    box-shadow: 0 6px 18px rgba(4, 17, 31, 0.18);
+  }
+
+  .gallery-item:hover img {
+    box-shadow: none;
+  }
+
+  button:hover {
+    transform: none;
+    box-shadow: 0 6px 18px rgba(221, 54, 28, 0.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
