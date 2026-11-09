@@ -54,34 +54,34 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.install-banner {
+.app-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.app-option {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  margin: 0 auto 16px;
-  padding: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
   background: var(--nasa-blue);
   color: var(--nasa-white);
 }
 
-.install-banner-actions {
-  display: flex;
-  gap: 10px;
+.app-option p {
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
-.install-banner button {
+.app-option button {
   width: auto;
   padding: 8px 14px;
-}
-
-.install-banner .install-dismiss {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: none;
 }
 
 h1 {
@@ -150,23 +150,6 @@ h1 {
   color: var(--nasa-white);
 }
 
-.notification-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.notification-controls button {
-  width: auto;
-  padding: 8px 14px;
-}
-
-.notification-controls p {
-  font-size: 0.9rem;
-}
-
 /* Inputs and buttons */
 input[type="date"],
 button {
@@ -220,9 +203,6 @@ a:focus-visible {
     width: auto;
   }
 
-  .install-banner {
-    padding: 14px 20px;
-  }
 }
 
 /* Gallery flex container */

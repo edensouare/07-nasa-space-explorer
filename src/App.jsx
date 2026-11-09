@@ -55,6 +55,21 @@ function getApodUrl(startDate, endDate) {
   return `https://science.nasa.gov/wp-json/wp/v2/apod-basic?start_date=${startDate}&end_date=${endDate}`;
 }
 
+function isIOSDevice() {
+  return (
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+function isAppInstalled() {
+  return (
+    (typeof window.matchMedia === 'function' &&
+      window.matchMedia('(display-mode: standalone)').matches) ||
+    navigator.standalone === true
+  );
+}
+
 function readCache(key) {
   const cachedEntry = nasaRequestCache.get(key);
 
@@ -220,11 +235,12 @@ function LazyImage({ src, alt, fallbackSrc = 'img/nasa-worm-logo.png', className
 function App() {
   const defaultRange = useMemo(() => getDefaultRange(), []);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [isInstalled, setIsInstalled] = useState(isAppInstalled);
   const [notificationPermission, setNotificationPermission] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported'
   );
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installMessage, setInstallMessage] = useState('');
   const deferredInstallPrompt = useRef(null);
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
@@ -238,12 +254,11 @@ function App() {
     function handleBeforeInstallPrompt(event) {
       event.preventDefault();
       deferredInstallPrompt.current = event;
-      setInstallPrompt(event);
     }
 
     function handleAppInstalled() {
       deferredInstallPrompt.current = null;
-      setInstallPrompt(null);
+      setIsInstalled(true);
     }
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -272,22 +287,25 @@ function App() {
   async function handleInstallClick() {
     const promptEvent = deferredInstallPrompt.current;
     if (!promptEvent) {
+      setInstallMessage(
+        isIOSDevice()
+          ? 'In Safari, tap Share, then choose Add to Home Screen.'
+          : 'Open your browser menu and choose Install app or Add to Home Screen.'
+      );
       return;
     }
 
     try {
       await promptEvent.prompt();
-      await promptEvent.userChoice;
+      const choice = await promptEvent.userChoice;
       deferredInstallPrompt.current = null;
-      setInstallPrompt(null);
+      if (choice.outcome === 'dismissed') {
+        setInstallMessage('You can install Space Explorer later from your browser menu.');
+      }
     } catch (error) {
       console.error('Unable to show the app install prompt:', error);
+      setInstallMessage('The install prompt could not be opened. Try your browser menu instead.');
     }
-  }
-
-  function dismissInstallBanner() {
-    deferredInstallPrompt.current = null;
-    setInstallPrompt(null);
   }
 
   async function handleNotificationClick() {
@@ -384,20 +402,6 @@ function App() {
 
   return (
     <>
-      {installPrompt && (
-        <aside className="install-banner" aria-label="Install NASA Space Explorer">
-          <p>Install NASA Space Explorer for quick access.</p>
-          <div className="install-banner-actions">
-            <button type="button" onClick={handleInstallClick}>
-              Install
-            </button>
-            <button type="button" className="install-dismiss" onClick={dismissInstallBanner}>
-              Not now
-            </button>
-          </div>
-        </aside>
-      )}
-
       {!isOnline && (
         <p className="offline-indicator" role="status" aria-live="polite">
           You’re offline. Previously loaded photos and app resources may still be available.
@@ -409,6 +413,31 @@ function App() {
           <img src="img/nasa-worm-logo.png" alt="NASA Logo" className="logo" />
           <h1>Space Explorer</h1>
         </header>
+
+        <section className="app-options" aria-label="App options">
+          {!isInstalled && (
+            <div className="app-option">
+              <p>Install Space Explorer on your phone for quick access.</p>
+              <button type="button" onClick={handleInstallClick}>
+                Install app
+              </button>
+              {installMessage && <p role="status">{installMessage}</p>}
+            </div>
+          )}
+          <div className="app-option">
+            <p>Notifications</p>
+            {isIOSDevice() && !isInstalled ? (
+              <p>Add this site to your Home Screen before enabling notifications on iPhone or iPad.</p>
+            ) : notificationPermission === 'unsupported' ? (
+              <p>Notifications are not supported by this browser.</p>
+            ) : (
+              <button type="button" onClick={handleNotificationClick}>
+                {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
+              </button>
+            )}
+            {notificationMessage && <p role="status">{notificationMessage}</p>}
+          </div>
+        </section>
 
         <div className="filters">
           <div className="date-field">
@@ -450,16 +479,6 @@ function App() {
         <section className="did-you-know" aria-live="polite">
           <h2>Did You Know?</h2>
           <p>{fact}</p>
-          <div className="notification-controls">
-            {notificationPermission === 'unsupported' ? (
-              <p>Notifications are not supported by this browser.</p>
-            ) : (
-              <button type="button" onClick={handleNotificationClick}>
-                {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
-              </button>
-            )}
-            {notificationMessage && <p role="status">{notificationMessage}</p>}
-          </div>
         </section>
 
         <div className="gallery">
