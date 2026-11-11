@@ -1,21 +1,22 @@
-const CACHE_NAME = 'nasa-space-explorer-v1';
+const SHELL_CACHE_PREFIX = 'nasa-space-explorer-shell-';
+const SHELL_CACHE = SHELL_CACHE_PREFIX + '__BUILD_VERSION__';
+const RUNTIME_CACHE = 'nasa-space-explorer-runtime';
 const APP_ROOT = new URL('./', self.registration.scope).href;
-const NASA_API_ORIGIN = 'https://science.nasa.gov';
-const NASA_API_PATH = '/wp-json/wp/v2/apod-basic';
+const NASA_API_ORIGIN = 'https://api.nasa.gov';
+const NASA_API_PATH = '/planetary/apod';
 const APP_SHELL_URLS = [
   APP_ROOT,
   new URL('./manifest.json', APP_ROOT).href,
-  new URL('./js/dateRange.js', APP_ROOT).href,
-  new URL('./js/script.js', APP_ROOT).href,
+  new URL('./img/favicon.png', APP_ROOT).href,
   new URL('./img/nasa-worm-logo.png', APP_ROOT).href,
   new URL('./img/icon-192.png', APP_ROOT).href,
   new URL('./img/icon-512.png', APP_ROOT).href,
 ];
 
-async function saveResponse(request, response) {
+async function saveResponse(cacheName, request, response) {
   if (response.ok || response.type === 'opaque') {
     try {
-      const cache = await caches.open(CACHE_NAME);
+      const cache = await caches.open(cacheName);
       await cache.put(request, response.clone());
     } catch (error) {
       console.error('Unable to cache response:', error);
@@ -27,90 +28,54 @@ async function saveResponse(request, response) {
 
 async function networkFirst(request) {
   try {
-    return await saveResponse(request, await fetch(request));
-  } catch (error) {
-    const cache = await caches.open(CACHE_NAME);
-    const cachedResponse = await cache.match(request);
+    const response = await fetch(request);
+    if (response.ok) {
+      return saveResponse(RUNTIME_CACHE, request, response);
+    }
 
+    const cache = await caches.open(RUNTIME_CACHE);
+    return (await cache.match(request)) || response;
+  } catch (error) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    const cachedResponse = await cache.match(request);
     if (cachedResponse) {
       return cachedResponse;
     }
-
     throw error;
   }
 }
 
-async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  if (request.mode !== 'navigate') {
-    const cachedResponse = await cache.match(request);
-
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-  }
-
-  async function getCachedAppPage() {
-    if (request.mode !== 'navigate') {
-      return null;
-    }
-
-    return cache.match(APP_ROOT);
-  }
-
-  try {
-    const response = await fetch(request);
-
-    if (!response.ok) {
-      const cachedAppPage = await getCachedAppPage();
-      if (cachedAppPage) {
-        return cachedAppPage;
-      }
-    }
-
-    return await saveResponse(request, response);
-  } catch (error) {
-    const cachedAppPage = await getCachedAppPage();
-    if (cachedAppPage) {
-      return cachedAppPage;
-    }
-
-    throw error;
-  }
+async function cacheFirst(request, cacheKey, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(cacheKey);
+  return cachedResponse || saveResponse(cacheName, cacheKey, await fetch(request));
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      await cache.addAll(APP_SHELL_URLS);
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    await cache.addAll(APP_SHELL_URLS.map((url) => new Request(url, { cache: 'reload' })));
 
-      const appPage = await cache.match(APP_ROOT);
-      const appHtml = await appPage.text();
-      const builtAssets = Array.from(
-        appHtml.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
-        (match) => new URL(match[1], APP_ROOT).href
-      );
-      await cache.addAll(builtAssets);
-    })
-  );
-  self.skipWaiting();
+    const appPage = await cache.match(APP_ROOT);
+    const appHtml = await appPage.text();
+    const builtAssets = Array.from(
+      appHtml.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+      (match) => new Request(new URL(match[1], APP_ROOT), { cache: 'reload' })
+    );
+    await cache.addAll(builtAssets);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) =>
-      Promise.all(
-        cacheNames
-          .filter(
-            (cacheName) =>
-              cacheName.startsWith('nasa-space-explorer-') &&
-              cacheName !== CACHE_NAME
-          )
-          .map((cacheName) => caches.delete(cacheName))
-      )
-    )
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames
+      .filter((name) => name === 'nasa-space-explorer-v1' ||
+        (name.startsWith(SHELL_CACHE_PREFIX) && name !== SHELL_CACHE))
+      .map((name) => caches.delete(name)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -128,7 +93,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    isNasaApiRequest ? networkFirst(event.request) : cacheFirst(event.request)
-  );
+  if (isNasaApiRequest) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  const isAppPage = event.request.mode === 'navigate' &&
+    (requestUrl.pathname === new URL(APP_ROOT).pathname ||
+      requestUrl.pathname === new URL('index.html', APP_ROOT).pathname);
+  const cacheName = isSameOrigin ? SHELL_CACHE : RUNTIME_CACHE;
+  event.respondWith(cacheFirst(event.request, isAppPage ? APP_ROOT : event.request, cacheName));
 });

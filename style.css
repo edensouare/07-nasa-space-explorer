@@ -20,7 +20,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   background: linear-gradient(180deg, var(--nasa-midnight) 0%, #0d1f38 100%);
   color: var(--nasa-ink);
-  min-width: 320px;
   padding: clamp(12px, 3vw, 24px);
 }
 
@@ -45,7 +44,7 @@ body {
 }
 
 .offline-indicator {
-  margin: -20px -20px 20px;
+  margin-bottom: 20px;
   padding: 14px 20px;
   background: var(--nasa-red);
   color: var(--nasa-white);
@@ -166,8 +165,23 @@ button {
 }
 
 input[type="date"] {
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
   background: var(--nasa-white);
   min-width: 0;
+  max-width: 100%;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+
+.app-option button:disabled {
+  cursor: default;
+  opacity: 0.7;
+  transform: none;
 }
 
 /* Button specific */

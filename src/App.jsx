@@ -52,7 +52,7 @@ function extractImageUrl(spaceImage) {
 }
 
 function getApodUrl(startDate, endDate) {
-  return `https://science.nasa.gov/wp-json/wp/v2/apod-basic?start_date=${startDate}&end_date=${endDate}`;
+  return `https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&start_date=${startDate}&end_date=${endDate}&thumbs=true`;
 }
 
 function isIOSDevice() {
@@ -132,6 +132,9 @@ function useNasaImages(startDate, endDate) {
     try {
       const response = await fetch(getApodUrl(requestedStartDate, requestedEndDate));
 
+      if (response.status === 429) {
+        throw new Error('NASA’s demo API request limit was reached. Try again later.');
+      }
       if (!response.ok) {
         throw new Error('Unable to fetch NASA data.');
       }
@@ -252,6 +255,7 @@ function App() {
     'Notification' in window ? Notification.permission : 'unsupported'
   );
   const [notificationMessage, setNotificationMessage] = useState('');
+  const needsHomeScreen = isIOSDevice() && !isInstalled;
   const [installMessage, setInstallMessage] = useState('');
   const deferredInstallPrompt = useRef(null);
   const [startDate, setStartDate] = useState(defaultRange.start);
@@ -266,6 +270,7 @@ function App() {
     function handleBeforeInstallPrompt(event) {
       event.preventDefault();
       deferredInstallPrompt.current = event;
+      setInstallMessage('');
     }
 
     function handleAppInstalled() {
@@ -301,16 +306,16 @@ function App() {
     if (!promptEvent) {
       setInstallMessage(
         isIOSDevice()
-          ? 'In Safari, tap Share, then choose Add to Home Screen.'
+          ? 'In Safari, open Share, choose Add to Home Screen, and tap Add. Turn on Open as Web App if shown.'
           : 'Open your browser menu and choose Install app or Add to Home Screen.'
       );
       return;
     }
 
+    deferredInstallPrompt.current = null;
     try {
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
-      deferredInstallPrompt.current = null;
       if (choice.outcome === 'dismissed') {
         setInstallMessage('You can install Space Explorer later from your browser menu.');
       }
@@ -327,32 +332,42 @@ function App() {
       return;
     }
 
+    let permission;
     try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-
-      if (permission === 'granted') {
-        const notificationOptions = {
-          body: 'Notifications are enabled for NASA Space Explorer.',
-          icon: `${import.meta.env.BASE_URL}img/icon-192.png`,
-        };
-        const registration = await navigator.serviceWorker?.getRegistration();
-
-        if (registration) {
-          await registration.showNotification('NASA Space Explorer', notificationOptions);
-        } else {
-          new Notification('NASA Space Explorer', notificationOptions);
-        }
-
-        setNotificationMessage('A test notification was sent.');
-      } else if (permission === 'denied') {
-        setNotificationMessage('Notifications are blocked. Change this site’s permission in your browser settings to enable them.');
-      } else {
-        setNotificationMessage('Notification permission was not granted.');
-      }
+      permission = Notification.permission === 'granted'
+        ? 'granted'
+        : await Notification.requestPermission();
     } catch (error) {
       console.error('Unable to request notification permission:', error);
-      setNotificationMessage('Could not enable notifications. Please try again.');
+      setNotificationMessage('Could not request notification permission. Please try again.');
+      return;
+    }
+
+    setNotificationPermission(permission);
+    if (permission === 'denied') {
+      setNotificationMessage('Notifications are blocked. Check your browser or device notification settings.');
+      return;
+    }
+    if (permission !== 'granted') {
+      setNotificationMessage('Notification permission was not granted.');
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      if (!registration?.active) {
+        setNotificationMessage('Permission is enabled. Reopen the app to load the service worker and send a test.');
+        return;
+      }
+
+      await registration.showNotification('NASA Space Explorer', {
+        body: 'Notifications are enabled for NASA Space Explorer.',
+        icon: `${import.meta.env.BASE_URL}img/icon-192.png`,
+      });
+      setNotificationMessage('A test notification was sent.');
+    } catch (error) {
+      console.error('Unable to show test notification:', error);
+      setNotificationMessage('Permission is enabled. The test notification could not be shown.');
     }
   }
 
@@ -429,10 +444,12 @@ function App() {
         <section className="app-options" aria-label="App options">
           <div className="app-option">
             {isInstalled ? (
-              <p role="status">Space Explorer is already installed on this device.</p>
+              <p role="status">Space Explorer is running as an installed app.</p>
             ) : (
               <>
-                <p>Install Space Explorer on your phone for quick access.</p>
+                <p>{needsHomeScreen
+                  ? 'On iPhone or iPad, install Space Explorer from Safari’s Share menu.'
+                  : 'Install Space Explorer on your device for quick access.'}</p>
                 <button type="button" onClick={handleInstallClick}>
                   Install app
                 </button>
@@ -445,14 +462,14 @@ function App() {
             <button
               type="button"
               onClick={handleNotificationClick}
-              disabled={notificationPermission === 'unsupported' || (isIOSDevice() && !isInstalled)}
+              disabled={notificationPermission === 'unsupported' || needsHomeScreen}
             >
               {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
             </button>
-            {isIOSDevice() && !isInstalled && (
-              <p>Add this site to your Home Screen before enabling notifications on iPhone or iPad.</p>
+            {needsHomeScreen && (
+              <p>Add Space Explorer to your Home Screen, then open it from its icon to enable notifications.</p>
             )}
-            {notificationPermission === 'unsupported' && (
+            {!needsHomeScreen && notificationPermission === 'unsupported' && (
               <p>Notifications are not supported by this browser.</p>
             )}
             {notificationMessage && <p role="status">{notificationMessage}</p>}
