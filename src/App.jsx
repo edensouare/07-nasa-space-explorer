@@ -152,25 +152,45 @@ function useNasaImages(startDate, endDate) {
         spaceImage.date >= requestedStartDate &&
         spaceImage.date <= requestedEndDate
       ));
+      const isPlaceholder = (spaceImage) => (
+        spaceImage.title === 'NASA Science' &&
+        extractImageUrl(spaceImage).toLowerCase().includes('nasa-logo')
+      );
+      const imagesByDate = new Map(matchingImages
+        .filter((spaceImage) => !isPlaceholder(spaceImage))
+        .map((spaceImage) => [spaceImage.date, spaceImage]));
 
-      if (matchingImages.length === 0) {
+      if (matchingImages.some(isPlaceholder)) {
+        try {
+          const scienceResponse = await fetch('https://science.nasa.gov/wp-json/wp/v2/apod-basic');
+          if (scienceResponse.ok) {
+            const recentImages = await scienceResponse.json();
+            if (Array.isArray(recentImages)) {
+              for (const spaceImage of recentImages) {
+                if (typeof spaceImage.date === 'string' &&
+                    spaceImage.date >= requestedStartDate &&
+                    spaceImage.date <= requestedEndDate &&
+                    !imagesByDate.has(spaceImage.date) &&
+                    !isPlaceholder(spaceImage)) {
+                  imagesByDate.set(spaceImage.date, spaceImage);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Unable to load NASA’s recent images:', error);
+        }
+      }
+
+      if (imagesByDate.size === 0) {
         setImages([]);
-        setError('No space images found for this date range.');
+        setError('NASA has no usable images for this date range. Try a different range.');
         return;
       }
 
-      const hasPlaceholderData = matchingImages.some((spaceImage) => {
-        const candidateUrl = extractImageUrl(spaceImage).toLowerCase();
-        return spaceImage.title === 'NASA Science' && candidateUrl.includes('nasa-logo');
-      });
-
-      if (hasPlaceholderData) {
-        setImages([]);
-        setError('The NASA API is returning the placeholder logo instead of real APOD images.');
-        return;
-      }
-
-      const normalizedData = matchingImages.map((spaceImage) => ({
+      const availableImages = [...imagesByDate.values()]
+        .sort((first, second) => first.date.localeCompare(second.date));
+      const normalizedData = availableImages.map((spaceImage) => ({
         ...spaceImage,
         displayImageUrl: extractImageUrl(spaceImage),
       }));

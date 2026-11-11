@@ -2,8 +2,10 @@ const SHELL_CACHE_PREFIX = 'nasa-space-explorer-shell-';
 const SHELL_CACHE = SHELL_CACHE_PREFIX + '__BUILD_VERSION__';
 const RUNTIME_CACHE = 'nasa-space-explorer-runtime';
 const APP_ROOT = new URL('./', self.registration.scope).href;
-const NASA_API_ORIGIN = 'https://api.nasa.gov';
-const NASA_API_PATH = '/planetary/apod';
+const NASA_API_ENDPOINTS = new Set([
+  'https://api.nasa.gov/planetary/apod',
+  'https://science.nasa.gov/wp-json/wp/v2/apod-basic',
+]);
 const APP_SHELL_URLS = [
   APP_ROOT,
   new URL('./manifest.json', APP_ROOT).href,
@@ -81,9 +83,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   const isSameOrigin = requestUrl.origin === self.location.origin;
-  const isNasaApiRequest =
-    requestUrl.origin === NASA_API_ORIGIN &&
-    requestUrl.pathname === NASA_API_PATH;
+  const isNasaApiRequest = NASA_API_ENDPOINTS.has(requestUrl.origin + requestUrl.pathname);
   const isImage = event.request.destination === 'image';
 
   if (
