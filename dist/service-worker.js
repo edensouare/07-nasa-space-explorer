@@ -42,10 +42,12 @@ async function networkFirst(request) {
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
-  const cachedResponse = await cache.match(request);
+  if (request.mode !== 'navigate') {
+    const cachedResponse = await cache.match(request);
 
-  if (cachedResponse) {
-    return cachedResponse;
+    if (cachedResponse) {
+      return cachedResponse;
+    }
   }
 
   async function getCachedAppPage() {
