@@ -144,7 +144,19 @@ function useNasaImages(startDate, endDate) {
         return;
       }
 
-      const hasPlaceholderData = data.some((spaceImage) => {
+      const matchingImages = data.filter((spaceImage) => (
+        typeof spaceImage.date === 'string' &&
+        spaceImage.date >= requestedStartDate &&
+        spaceImage.date <= requestedEndDate
+      ));
+
+      if (matchingImages.length === 0) {
+        setImages([]);
+        setError('No space images found for this date range.');
+        return;
+      }
+
+      const hasPlaceholderData = matchingImages.some((spaceImage) => {
         const candidateUrl = extractImageUrl(spaceImage).toLowerCase();
         return spaceImage.title === 'NASA Science' && candidateUrl.includes('nasa-logo');
       });
@@ -155,7 +167,7 @@ function useNasaImages(startDate, endDate) {
         return;
       }
 
-      const normalizedData = data.map((spaceImage) => ({
+      const normalizedData = matchingImages.map((spaceImage) => ({
         ...spaceImage,
         displayImageUrl: extractImageUrl(spaceImage),
       }));
@@ -415,25 +427,33 @@ function App() {
         </header>
 
         <section className="app-options" aria-label="App options">
-          {!isInstalled && (
-            <div className="app-option">
-              <p>Install Space Explorer on your phone for quick access.</p>
-              <button type="button" onClick={handleInstallClick}>
-                Install app
-              </button>
-              {installMessage && <p role="status">{installMessage}</p>}
-            </div>
-          )}
+          <div className="app-option">
+            {isInstalled ? (
+              <p role="status">Space Explorer is already installed on this device.</p>
+            ) : (
+              <>
+                <p>Install Space Explorer on your phone for quick access.</p>
+                <button type="button" onClick={handleInstallClick}>
+                  Install app
+                </button>
+                {installMessage && <p role="status">{installMessage}</p>}
+              </>
+            )}
+          </div>
           <div className="app-option">
             <p>Notifications</p>
-            {isIOSDevice() && !isInstalled ? (
+            <button
+              type="button"
+              onClick={handleNotificationClick}
+              disabled={notificationPermission === 'unsupported' || (isIOSDevice() && !isInstalled)}
+            >
+              {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
+            </button>
+            {isIOSDevice() && !isInstalled && (
               <p>Add this site to your Home Screen before enabling notifications on iPhone or iPad.</p>
-            ) : notificationPermission === 'unsupported' ? (
+            )}
+            {notificationPermission === 'unsupported' && (
               <p>Notifications are not supported by this browser.</p>
-            ) : (
-              <button type="button" onClick={handleNotificationClick}>
-                {notificationPermission === 'granted' ? 'Send test notification' : 'Enable notifications'}
-              </button>
             )}
             {notificationMessage && <p role="status">{notificationMessage}</p>}
           </div>
