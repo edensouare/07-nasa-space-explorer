@@ -12,12 +12,56 @@ const earliestDate = '1995-06-16';
 const MAX_DATE_RANGE_DAYS = 14;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const nasaRequestCache = new Map();
+const OFFLINE_GALLERY_KEY = 'nasa-space-explorer-last-gallery';
+const IMAGE_CACHE_NAME = 'nasa-space-explorer-runtime';
+
+function readSavedGallery() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OFFLINE_GALLERY_KEY));
+    if (saved && typeof saved.start === 'string' && typeof saved.end === 'string' &&
+        Array.isArray(saved.images)) {
+      return saved;
+    }
+  } catch (error) {
+    console.warn('Unable to read saved gallery:', error);
+  }
+  return null;
+}
+
+async function saveGalleryOffline(start, end, images, isCurrent) {
+  if (!('caches' in window)) {
+    return 'Offline saving is unavailable in this browser.';
+  }
+
+  const cache = await caches.open(IMAGE_CACHE_NAME);
+  const urls = [...new Set(images.map(image => image.media_type === 'video'
+    ? image.thumbnail_url || new URL('img/nasa-worm-logo.png', location.href).href
+    : image.displayImageUrl))];
+  const results = await Promise.allSettled(urls.map(async url => {
+    const request = new Request(url, { mode: 'no-cors', credentials: 'omit' });
+    if (await cache.match(request)) return;
+    const response = await fetch(request);
+    if (!response.ok && response.type !== 'opaque') {
+      throw new Error('Image download failed');
+    }
+    await cache.put(request, response);
+  }));
+  const savedCount = results.filter(result => result.status === 'fulfilled').length;
+  if (isCurrent()) {
+    localStorage.setItem(OFFLINE_GALLERY_KEY, JSON.stringify({ start, end, images }));
+  }
+  return savedCount === urls.length
+    ? 'Gallery saved for offline viewing. Videos need an internet connection.'
+    : `Saved ${savedCount} of ${urls.length} images offline. Reconnect and search again to finish saving.`;
+}
 
 function formatDate(date) {
   return date.toISOString().split('T')[0];
 }
 
 function getDefaultRange() {
+  const saved = !navigator.onLine && readSavedGallery();
+  if (saved) return { start: saved.start, end: saved.end };
   const today = new Date();
   const start = new Date(today);
   start.setDate(today.getDate() - 8);
@@ -71,6 +115,10 @@ function isAppInstalled() {
 }
 
 function readCache(key) {
+  const saved = !navigator.onLine && readSavedGallery();
+  if (saved && key === `${saved.start}::${saved.end}`) {
+    return saved.images;
+  }
   const cachedEntry = nasaRequestCache.get(key);
 
   if (!cachedEntry) {
@@ -93,11 +141,18 @@ function writeCache(key, data) {
 }
 
 function useNasaImages(startDate, endDate) {
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState(() => (
+    !navigator.onLine ? readSavedGallery()?.images || [] : []
+  ));
+  const [offlineMessage, setOfflineMessage] = useState('');
+  const requestNumber = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const fetchImages = useCallback(async (requestedStartDate = startDate, requestedEndDate = endDate) => {
+    const currentRequest = ++requestNumber.current;
+    setOfflineMessage('');
+    setIsLoading(false);
     if (!requestedStartDate || !requestedEndDate) {
       setImages([]);
       setError('Please choose a valid date range.');
@@ -123,6 +178,15 @@ function useNasaImages(startDate, endDate) {
     if (cachedImages) {
       setImages(cachedImages);
       setError('');
+      if (navigator.onLine) {
+        setOfflineMessage('Saving images for offline viewing…');
+        try {
+          const message = await saveGalleryOffline(requestedStartDate, requestedEndDate, cachedImages, () => currentRequest === requestNumber.current);
+          if (currentRequest === requestNumber.current) setOfflineMessage(message);
+        } catch (error) {
+          if (currentRequest === requestNumber.current) setOfflineMessage('Could not finish saving offline. Reconnect and try again.');
+        }
+      }
       return;
     }
 
@@ -195,18 +259,30 @@ function useNasaImages(startDate, endDate) {
         displayImageUrl: extractImageUrl(spaceImage),
       }));
 
+      if (currentRequest !== requestNumber.current) return;
       writeCache(cacheKey, normalizedData);
       setImages(normalizedData);
       setError('');
-    } catch (fetchError) {
-      setImages([]);
-      setError(fetchError.message || 'Something went wrong while loading the images.');
-    } finally {
       setIsLoading(false);
+      setOfflineMessage('Saving images for offline viewing…');
+      try {
+        const message = await saveGalleryOffline(requestedStartDate, requestedEndDate, normalizedData, () => currentRequest === requestNumber.current);
+        if (currentRequest === requestNumber.current) setOfflineMessage(message);
+      } catch (error) {
+        if (currentRequest === requestNumber.current) setOfflineMessage('Could not finish saving offline. Reconnect and try again.');
+      }
+    } catch (fetchError) {
+      if (currentRequest !== requestNumber.current) return;
+      setImages([]);
+      setError(!navigator.onLine
+        ? 'This date range is unavailable offline. Reconnect to load and save it.'
+        : fetchError.message || 'Something went wrong while loading the images.');
+    } finally {
+      if (currentRequest === requestNumber.current) setIsLoading(false);
     }
   }, [startDate, endDate]);
 
-  return { images, isLoading, error, fetchImages };
+  return { images, isLoading, error, offlineMessage, fetchImages };
 }
 
 function LazyImage({ src, alt, fallbackSrc = 'img/nasa-worm-logo.png', className = '', immediateLoad = false }) {
@@ -282,8 +358,8 @@ function App() {
   const [endDate, setEndDate] = useState(defaultRange.end);
   const [rangeWarning, setRangeWarning] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const { images, isLoading, error, fetchImages } = useNasaImages(startDate, endDate);
+  const [hasSearched, setHasSearched] = useState(() => !navigator.onLine && Boolean(readSavedGallery()?.images.length));
+  const { images, isLoading, error, offlineMessage, fetchImages } = useNasaImages(startDate, endDate);
   const fact = useMemo(() => spaceFacts[Math.floor(Math.random() * spaceFacts.length)], []);
 
   useEffect(() => {
@@ -451,7 +527,9 @@ function App() {
     <>
       {!isOnline && (
         <p className="offline-indicator" role="status" aria-live="polite">
-          You’re offline. Previously loaded photos and app resources may still be available.
+          {readSavedGallery()?.images.length
+            ? 'You’re offline. Showing your last saved gallery. Reconnect to explore new dates.'
+            : 'You’re offline. Reconnect to load and save a gallery.'}
         </p>
       )}
 
@@ -531,6 +609,7 @@ function App() {
           </button>
         </div>
 
+        {offlineMessage && <p className="offline-save-status" role="status">{offlineMessage}</p>}
         {rangeWarning && <p className="status-message">{rangeWarning}</p>}
 
         <section className="did-you-know" aria-live="polite">

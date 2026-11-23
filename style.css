@@ -457,3 +457,9 @@ a:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+.offline-save-status {
+  color: var(--nasa-white);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}

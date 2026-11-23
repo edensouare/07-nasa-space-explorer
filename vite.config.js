@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  base: '/07-nasa-space-explorer/',
+  base: '/',
   plugins: [
     react(),
     {
@@ -28,10 +28,11 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: 3000,
+    allowedHosts: true,
   },
   preview: {
     host: '0.0.0.0',
-    port: 4173,
+    port: 3000,
   },
 });
