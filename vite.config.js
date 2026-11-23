@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  base: '/',
+  // Keep assets and service worker registration relative to the deployed app.
+  base: './',
   plugins: [
     react(),
     {
